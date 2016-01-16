@@ -1,26 +1,28 @@
+//var $, Showdown, MathJax, Prism, Spine, Hogan, Github, err;
+
 var global = {};
 var gconfig = null;
 var repo = null;
 var editor = null;
-var contentpattern = /<!-- content -->\n([\s\S]*)\n<!-- content end -->\n/m;
-var pathpattern = /\/\/path\nvar path=\"(.*)\";\n\/\/path end\n/m;
-var mdpattern = /<!-- markdown -->\n([\s\S]*)\n<!-- markdown end -->\n/m;
-Date.prototype.yyyymmdd = function() {
-    var yyyy = this.getFullYear().toString();
-    var mm = (this.getMonth()+1).toString();
-    var dd  = this.getDate().toString();
-    return yyyy + "-" + (mm[1]?mm:"0"+mm[0]) + "-" + (dd[1]?dd:"0"+dd[0]);
-};
-function reescape(data) {
-    return data.replace(/>/g, "&gt;").replace(/</g, "&lt;");
+var user_template = null;
+var site_branch = "gh-pages";//"master";
+var site_repo = function(username){return "Test";};//function(username) { return username + ".github.io"; };
+var pattern_more = /^-+more-+$/m;
+function wrap_source(md) {
+    return "(("+md.replace(/>/g, "\\>")+"))"
+}
+function mdtohtml(md) {
+    var converter = new Showdown.converter();
+    return converter.makeHtml(md);
+}
+function extract_source(htmlsource)
+{
+    return htmlsource.match(/<!--\(\(([\s\S]*?)\)\)-->/m)[1].replace(/\\>/g, ">");
 }
 function mdupdate() {
-    var converter = new Showdown.converter();
     var tmp = $("#editmd").val();
     sessionStorage.setItem("editmd", tmp);
-    tmp = tmp.replace(/~~~~\{(.*)\}\n([\s\S]*?)~~~~\n/mg, function(a1, a2, a3) {return "<pre><code class=\"language-"+a2+"\">"+reescape(a3)+"</code></pre>";});
-    tmp = tmp.replace(/~~~~\n([\s\S]*?)~~~~\n/mg, function(a1, a2) {return "<pre><code>"+reescape(a2)+"</code></pre>"});
-    tmp = converter.makeHtml(tmp);
+    tmp = mdtohtml(tmp);
     $("#edithtml").html(tmp);
     Prism.highlightAll();
     MathJax.Hub.Queue(["Typeset", MathJax.Hub, "edithtml"]);
@@ -73,7 +75,7 @@ function errShow(item, err) {
 function asyncWrite(data, target, err, finish) {
     if (!repo)
         Spine.Route.navigate("");
-    repo.write("master", target, data, "simple",
+    repo.write(site_branch, target, data, "simple",
                function(e) {
                    var ret = err(e);
                    if (ret == false)
@@ -86,6 +88,7 @@ function asyncWriteFile(source, target, err, finish) {
     $.ajax({
         url: source, 
         type: "GET",
+        dataType: "text",
         success: function(data) {asyncWrite(data, target, err, finish)},
         error: function(e) {err(e);}
     });
@@ -102,7 +105,7 @@ function checkpass(user, pass, cbsuccess, cberror) {
         if (!cberror(err)) {
             global.github = github;
             global.user = user;
-            repo = github.getRepo(user, user+".github.io");
+            repo = github.getRepo(user, site_repo(user));
             cbsuccess();
         }
     });
@@ -146,13 +149,15 @@ $(document).ready(function() {
         initRepo: function(e) {
             e.preventDefault();
             var error = curry(errShow, this.err);
-            var a1 = curry(asyncWriteFile, "template/index.html", "index.html", error);
-            var a2 = curry(asyncWriteFile, "template/main.css", "main.css", error);
-            var a3 = curry(asyncWriteFile, "template/main.js", "main.js", error);
-            var config = {"name": global.user, "number_of_posts_per_page": 7, "disqus_shortname": "", "posts": [], "pages": []};
-            var a4 = curry(asyncWrite, JSON.stringify(config), "main.json", error);
-            var a5 = curry(asyncWrite, "", "CNAME", error);
-            syncSeq(function() {$("#initok").show()}, a1, a2, a3, a4, a5);
+            syncSeq(
+                function() {$("#initok").show()},
+                curry(asyncWriteFile, "template/index.template", "index.template", error),
+                curry(asyncWriteFile, "template/article.template", "article.template", error),
+                curry(asyncWriteFile, "template/archives.template", "archives.template", error),
+                curry(asyncWriteFile, "template/main.css", "main.css", error),
+                curry(asyncWriteFile, "template/main.json", "main.json", error),
+                curry(asyncWrite, "", "CNAME", error)
+            );
         },
         go: function(e) {
             this.navigate("/posts");
@@ -177,77 +182,62 @@ $(document).ready(function() {
                 num = param.num;
             if (repo != null) {
                 $("#loading").show();
-                repo.read("master", "main.json", function(err, data) {
+                $("#posttitle").val("");
+                $("#postpath").val("");
+                $("#postdate").val("");
+                $("#posttags").val("");
+                $("#edithtml").html("");
+                repo.read(site_branch, "main.json", function(err, data) {
                     $("#loading").hide();
-                    $("#posttitle").val("");
-                    $("#postpath").val("");
-                    $("#postdate").val("");
-                    $("#posttags").val("");
-                    $("#editmd").val(sessionStorage.getItem("editmd") || "before begin to write please click 'new post' or 'new page' first");
-                    $("#edithtml").html("");
+                    $("#editmd").val(sessionStorage.getItem("editmd") || "before begin to write please click 'new post' first");
                     var config = JSON.parse(data);
-                    config.posts.sort(function(a, b){
-                        if (a.date > b.date)
-                            return -1;
-                        if (a.date < b.date)
-                            return 1;
-                        return 0;
-                    });
                     gconfig = config;
-                    var posts = config.posts;
-                    var pages = config.pages;
+                    var posts = config.articles;
+                    var render_obj = [];
                     for (var i = 0; i < posts.length; ++i) {
-                        posts[i].num = i;
-                        posts[i].type = "post";
-                        posts[i].active = false;
-                        if (type == "post" && num != "null" && Math.floor(num) == i) {
-                            posts[i].active = true;
+                        var cur_obj = {"title": posts[i].title, "num": i};
+                        if (num != "null" && Math.floor(num) == i) {
                             now = posts[i];
+                            cur_obj.active = true;
                             $("#postSave").attr("href", "#/posts/savepost");
                             $("#postDelete").attr("href", "#/posts/deletepost/"+i);
                         }
-                    }
-                    for (var i = 0; i < pages.length; ++i) {
-                        pages[i].num = i;
-                        pages[i].type = "page";
-                        pages[i].active = false;
-                        if (type == "page" && num != "null" && Math.floor(num) == i) {
-                            pages[i].active = true;
-                            now = pages[i];
-                            $("#postSave").attr("href", "#/posts/savepage");
-                            $("#postDelete").attr("href", "#/posts/deletepage/"+i);
-                        }
+                        render_obj.push(cur_obj);
                     }
                     var itemTemplate = Hogan.compile($("#postsItem").html());
-                    var postsItemHtml = itemTemplate.render({items: posts});
-                    var pagesItemHtml = itemTemplate.render({items: pages});
+                    var postsItemHtml = itemTemplate.render({"items": render_obj});
                     $("#postItems").html(postsItemHtml);
-                    $("#pageItems").html(pagesItemHtml);
                     if (type != null && type.slice(0, 3) == "new") {
                         if (type.slice(3) == "post") {
                             $("#postSave").attr("href", "#/posts/savepost");
                             $("#postDelete").attr("href", "#/posts");
+                            $("#postdate").val((new Date()).toISOString());
                         }
-                        if (type.slice(3) == "page") {
-                            $("#postSave").attr("href", "#/posts/savepage");
-                            $("#postDelete").attr("href", "#/posts");
-                        }
-                        $("#postdate").val((new Date()).yyyymmdd());
                     }
                     if (now != null) {
                         $("#posttitle").val(now.title);
-                        $("#postpath").val(now.path);
-                        $("#postdate").val(now.date);
-                        $("#posttags").val(now.tags);
+                        $("#postpath").val(now.filename);
+                        $("#postdate").val(now.time);
+                        $("#posttags").val(now.tags.join(" "));
                         $("#loading").show();
-                        repo.read("master", now.path, function(err, data) {
+                        $("#editmd").val();
+                        $("#edithtml").html();
+                        repo.read(site_branch, "articles/"+now.filename, function(err, data) {
                             $("#loading").hide();
-                            var content = data.match(contentpattern)[1];
-                            var md = data.match(mdpattern)[1];
-                            $("#editmd").val(md);
-                            $("#edithtml").html(content);
+                            $("#editmd").val(extract_source(data));
+                            mdupdate();
                         });
                     }
+                    
+                    $("#btnGenIndex").on("click", function() {
+                        $("#loading").show();
+                        repo.read(site_branch, "index.template", function(err, data) {
+                            var html_final = Hogan.compile(data).render(gconfig);
+                            repo.write(site_branch, "index.html", html_final, "render", function(err) {
+                                $("#loading").hide();
+                            });
+                        });
+                    });
                 });
             }
         }
@@ -268,25 +258,17 @@ $(document).ready(function() {
                     var temp = this;
                     if (type.slice(0, 6) == "delete") {
                         $("#loading").show();
-                        var posts = [];
+                        var now = gconfig.articles[num];
                         if (type == "deletepost") {
-                            var now = gconfig.posts[num];
-                            for (var i = 0; i < gconfig.posts.length; ++i) {
+                            var posts = [];
+                            for (var i = 0; i < gconfig.articles.length; ++i) {
                                 if (i != num)
-                                    posts.push(gconfig.posts[i]);
+                                    posts.push(gconfig.articles[i]);
                             }
-                            gconfig.posts = posts;
+                            gconfig.articles = posts;
                         }
-                        if (type == "deletepage") {
-                            var now = gconfig.pages[num];
-                            for (var i = 0; i < gconfig.pages.length; ++i) {
-                                if (i != num)
-                                    posts.push(gconfig.pages[i]);
-                            }
-                            gconfig.pages = posts;
-                        }
-                        repo.write("master", "main.json", JSON.stringify(gconfig), "remove", function(err) {
-                            repo.delete("master", now.path, function(err) {
+                        repo.write(site_branch, "main.json", JSON.stringify(gconfig), "remove", function(err) {
+                            repo.delete(site_branch, "articles/"+now.filename, function(err) {
                                 temp.posts.init(param);
                                 temp.posts.active();
                             });
@@ -302,46 +284,45 @@ $(document).ready(function() {
                     var temp = this;
                     if (type.slice(0, 4) == "save") {
                         $("#loading").show();
-                        if (type == "savepost") {
-                            var template = "template/post.html";
-                            var posts = gconfig.posts;
-                        }
-                        if (type == "savepage") {
-                            var template = "template/page.html";
-                            var posts = gconfig.pages;
-                        }
-                        var now = {"title": $("#posttitle").val(),
-                                   "date": $("#postdate").val(),
-                                   "tags": $("#posttags").val(),
-                                   "path": $("#postpath").val()};
-                        var mark = null;
-                        for (var i = 0; i < posts.length; ++i)
-                            if (posts[i].path == now.path)
-                                mark = i;
-                        if (mark != null)
-                            posts[mark] = now;
-                        else
-                            posts.unshift(now);
-                        var content = $("#edithtml").html().replace(/\$/mg, "$$$$");
-                        var md = $("#editmd").val().replace(/\$/mg, "$$$$");
-                        $.ajax({
-                            url: template, 
-                            type: "GET",
-                            success: function(data) {
+                        var posts = gconfig.articles;
+                        var md = $("#editmd").val();
+                        var now = {"filename": $("#postpath").val(),
+                                   "time": $("#postdate").val(),
+                                   "title": $("#posttitle").val(),
+                                   "tags": $("#posttags").val().split(/[,\s]+/),
+                                   "source": wrap_source(md),
+                                   "content": mdtohtml(md),
+                                   "brief": ""};
+                        var idx_more = md.search(pattern_more);
+                        if(idx_more != -1)
+                            now.brief = mdtohtml(md.slice(0, idx_more));
+                        repo.read(site_branch, "article.template", function(err, data) {
+                            if(!data) {
+                                err(e);
+                            }
+                            else {
                                 $("#saveerror").hide();
-                                data = data.replace(contentpattern, "<!-- content -->\n"+content+"\n<!-- content end -->\n");
-                                data = data.replace("//path//", now.path);
-                                data = data.replace(mdpattern, "<!-- markdown -->\n"+md+"\n<!-- markdown end -->\n");
-                                repo.write("master", now.path, data, "save", function(err) {
-                                    repo.write("master", "main.json", JSON.stringify(gconfig), "save", function(err) {
+                                gconfig.current = now;
+                                var html_final = Hogan.compile(data).render(gconfig);
+                                repo.write(site_branch, "articles/"+now.filename, html_final, "save", function(err) {
+                                    now.content = now.source = undefined;
+                                    gconfig.current = undefined;
+                                    var mark = null;
+                                    for (var i = 0; i < posts.length; ++i)
+                                        if (posts[i].filename == now.filename)
+                                            mark = i;
+                                    if (mark != null)
+                                        posts[mark] = now;
+                                    else
+                                        posts.push(now);
+                                    repo.write(site_branch, "main.json", JSON.stringify(gconfig), "save", function(err) {
                                         if (!errShow($("saveerror", err))) {
                                             temp.posts.init(param);
                                             temp.posts.active();
                                         }
                                     });    
                                 });
-                            },
-                            error: function(e) {err(e);}
+                            }
                         });
                     }
                     else {
@@ -389,10 +370,14 @@ $(document).ready(function() {
                 var l = content.length;
                 var head = content.substring(0, cursor);
                 var tail = content.substring(cursor, l);
-                var url = " ![](http://"+global.user+".github.io/img/"+name+")";
+                var url = " ![](//"+global.user+".github.io/";
+                if(site_repo(global.user) != global.user + ".github.io") {
+                    url += site_repo(global.user)+"/";
+                }
+                url += "img/"+name+")";
                 $("#editmd").val(head+"<span class=\"loading\">upload image now!</span>"+tail);
                 mdupdate();
-                repo.write("master", "img/"+name, data, "upload image",
+                repo.write(site_branch, "img/"+name, data, "upload image",
                            function(e) {
                                if (typeof err != "undefined" && err != null) {
                                    console.log(err);
