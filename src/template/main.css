@@ -6,7 +6,10 @@
   outline: 0;
   border: 0;
 }
-div,p,nav,header,main,footer,span,time,article,h1,h2,h3,h4,h5,h6{
+h1,h2,h3,h4,h5,h6 {
+  font-weight: inherit;
+}
+div,p,nav,header,main,footer,span,time,article{
   font-weight: inherit;
   font-style: inherit;
   font-family: inherit;
@@ -168,9 +171,12 @@ pre {
   color: #555;
 }
 .article-inner {
-  margin-left: 1.5em;
-  margin-right: 1.5em;
+  padding-left: 1.5em;
+  padding-right: 1.5em;
   color: #444;
+}
+.article-inner > ol, .article-inner > ul {
+  padding: inherit;
 }
 .article-inner p {
   margin-bottom: 1em;
