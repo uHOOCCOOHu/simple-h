@@ -5,8 +5,7 @@ var gconfig = null;
 var repo = null;
 var editor = null;
 var user_template = null;
-var site_branch = "gh-pages";//"master";
-var site_repo = function(username){return "Test";};//function(username) { return username + ".github.io"; };
+var site_branch, site_repo;
 var pattern_more = /^-+more-+$/m;
 function wrap_source(md) {
     return "(("+md.replace(/>/g, "\\>")+"))"
@@ -105,8 +104,11 @@ function checkpass(user, pass, cbsuccess, cberror) {
         if (!cberror(err)) {
             global.github = github;
             global.user = user;
-            repo = github.getRepo(user, site_repo(user));
-            cbsuccess();
+            repo = github.getRepo(user, site_repo);
+            repo.show(function(err) {
+                if (!cberror(err))
+                    cbsuccess();
+            })
         }
     });
 }
@@ -117,6 +119,8 @@ $(document).ready(function() {
             "form": "form",
             "#loginuser": "user",
             "#loginpass": "pass",
+            "#loginrepo": "repo",
+            "#loginbranch": "branch",
             "#loginerror": "err",
         },
         events: {
@@ -125,6 +129,8 @@ $(document).ready(function() {
         check: function(e) {
             $("#loading").show();
             e.preventDefault();
+            site_repo = this.repo.val();
+            site_branch = this.branch.val();
             checkpass(this.user.val(), this.pass.val(),
                       function(){Spine.Route.navigate("/main");},
                       curry(errShow, this.err));
@@ -290,12 +296,16 @@ $(document).ready(function() {
                                    "time": $("#postdate").val(),
                                    "title": $("#posttitle").val(),
                                    "tags": $("#posttags").val().split(/[,\s]+/),
-                                   "source": wrap_source(md),
-                                   "content": mdtohtml(md),
+                                   "source": "",
+                                   "content": "",
                                    "brief": ""};
                         var idx_more = md.search(pattern_more);
-                        if(idx_more != -1)
+                        if(idx_more != -1) {
                             now.brief = mdtohtml(md.slice(0, idx_more));
+                            md = md.replace(pattern_more, "\n\n");
+                        }
+                        now.source = wrap_source(md);
+                        now.content = mdtohtml(md);
                         repo.read(site_branch, "article.template", function(err, data) {
                             if(!data) {
                                 err(e);
@@ -340,6 +350,13 @@ $(document).ready(function() {
     $("#editmd").on("keyup", function() {
         mdupdate();
     });
+    $("#loginuser").on("keyup", function() {
+        var user = $("#loginuser").val();
+        if(user != "")
+            $("#loginrepo").val(user+".github.io");
+        else
+            $("#loginrepo").val("");
+    });
     $("#editmd").on("dragenter", function(e) {
         e.stopPropagation();
         e.preventDefault();
@@ -371,8 +388,8 @@ $(document).ready(function() {
                 var head = content.substring(0, cursor);
                 var tail = content.substring(cursor, l);
                 var url = " ![](//"+global.user+".github.io/";
-                if(site_repo(global.user) != global.user + ".github.io") {
-                    url += site_repo(global.user)+"/";
+                if(site_repo != global.user + ".github.io") {
+                    url += site_repo+"/";
                 }
                 url += "img/"+name+")";
                 $("#editmd").val(head+"<span class=\"loading\">upload image now!</span>"+tail);
