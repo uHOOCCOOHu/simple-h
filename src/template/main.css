@@ -33,7 +33,7 @@ a {
   outline: none;
   color: #29d;
 }
-code {
+:not(pre) > code {
   margin: .3em;
   padding: 1px 3px;
   font-family: Consolas, Monaco, monospace;

@@ -7,9 +7,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
   <title>{{current.title}} | {{title}}</title>
   <link href="//cdn.bootcss.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet">
-  <link href="//cdn.bootcss.com/highlight.js/9.0.0/styles/default.min.css" rel="stylesheet">
+  <link href="//cdn.bootcss.com/prism/0.0.1/prism.min.css" rel="stylesheet">
   <link href="../main.css" rel="stylesheet">
   <script src="//cdn.bootcss.com/jquery/1.11.3/jquery.min.js"></script>
+  <script src="//cdn.bootcss.com/prism/0.0.1/prism.min.js"></script>
+  <script src="//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async></script>
 </head>
 
 <body>
@@ -56,10 +58,14 @@
     }
     
     $(function() {
+      Prism.highlightAll();
       var t = new Date('{{current.time}}');
       $('.article time').attr('title', t.toLocaleString() + '\n{{current.time}}');
       $('.article time').append(to_simple_date(t));
     });
+  </script>
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({ tex2jax: { inlineMath: [['$','$'], ["\\(", "\\)"]], processEscapes: true } });
   </script>
 </body>
 
