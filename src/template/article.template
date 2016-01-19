@@ -44,6 +44,7 @@
               <li><a href="../archives.html#{{.}}&" target="_blank">{{.}}</a></li>
             {{/current.tags}}
           </ul>
+          <div class="ds-thread" data-thread-key="{{current.filename}}" data-title="{{current.title}}"></div>
         </footer>
       </article>
     </div>
@@ -52,10 +53,19 @@
     <p>{{&footer}}</p>
   </footer>
   <script>
+    var duoshuoQuery = {short_name: "{{ds_shortname}}"};
     var arr_month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     var to_simple_date = function(date) {
       return arr_month[date.getMonth()] + ' ' + date.getDate();
-    }
+    };
+    
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
     
     $(function() {
       Prism.highlightAll();
