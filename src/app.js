@@ -296,7 +296,7 @@ $(document).ready(function() {
                                    "time": $("#postdate").val(),
                                    "title": $("#posttitle").val(),
                                    "tags": $("#posttags").val().split(/[,\s]+/),
-                                   "source": "",
+                                   "source": wrap_source(md),
                                    "content": "",
                                    "brief": ""};
                         var idx_more = md.search(pattern_more);
@@ -304,7 +304,6 @@ $(document).ready(function() {
                             now.brief = mdtohtml(md.slice(0, idx_more));
                             md = md.replace(pattern_more, "\n\n");
                         }
-                        now.source = wrap_source(md);
                         now.content = mdtohtml(md);
                         repo.read(site_branch, "article.template", function(err, data) {
                             if(!data) {
