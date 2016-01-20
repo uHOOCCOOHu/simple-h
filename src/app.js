@@ -202,7 +202,7 @@ $(document).ready(function() {
                     var render_obj = [];
                     for (var i = 0; i < posts.length; ++i) {
                         var cur_obj = {"title": posts[i].title, "num": i};
-                        if (num != "null" && Math.floor(num) == i) {
+                        if (num != null && Math.floor(num) == i) {
                             now = posts[i];
                             cur_obj.active = true;
                             $("#postSave").attr("href", "#/posts/savepost");
