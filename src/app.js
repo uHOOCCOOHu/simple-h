@@ -7,6 +7,8 @@ var editor = null;
 var user_template = null;
 var site_branch, site_repo;
 var pattern_more = /^-+more-+$/m;
+var editing_template = false;
+var arr_cfgfiles = ["main.json", "main.css", "index.template", "archives.template", "article.template"];
 function wrap_source(md) {
     return "(("+md.replace(/>/g, "\\>")+"))"
 }
@@ -19,12 +21,14 @@ function extract_source(htmlsource)
     return htmlsource.match(/<!--\(\(([\s\S]*?)\)\)-->/m)[1].replace(/\\>/g, ">");
 }
 function mdupdate() {
-    var tmp = $("#editmd").val();
-    sessionStorage.setItem("editmd", tmp);
-    tmp = mdtohtml(tmp);
-    $("#edithtml").html(tmp);
-    Prism.highlightAll();
-    MathJax.Hub.Queue(["Typeset", MathJax.Hub, "edithtml"]);
+    if(!editing_template) {
+        var tmp = $("#editmd").val();
+        sessionStorage.setItem("editmd", tmp);
+        tmp = mdtohtml(tmp);
+        $("#edithtml").html(tmp);
+        Prism.highlightAll();
+        MathJax.Hub.Queue(["Typeset", MathJax.Hub, "edithtml"]);
+    }
 }
 function curry(fn) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -181,7 +185,7 @@ $(document).ready(function() {
                 editor.destroy();
             var type = null;
             var num = null;
-            var now = null;
+            var now = null, nowtpl = null;
             if (typeof param != "undefined" && param.hasOwnProperty("type"))
                 type = param.type;
             if (typeof param != "undefined" && param.hasOwnProperty("num"))
@@ -199,20 +203,39 @@ $(document).ready(function() {
                     var config = JSON.parse(data);
                     gconfig = config;
                     var posts = config.articles;
-                    var render_obj = [];
+                    var render_obj = [], cur_obj;
                     for (var i = 0; i < posts.length; ++i) {
-                        var cur_obj = {"title": posts[i].title, "num": i};
+                        cur_obj = {"title": posts[i].title, "num": i};
                         if (num != null && Math.floor(num) == i) {
                             now = posts[i];
                             cur_obj.active = true;
                             $("#postSave").attr("href", "#/posts/savepost");
                             $("#postDelete").attr("href", "#/posts/deletepost/"+i);
+                            $('#posts .form-group input').attr("disabled", false);
+                            $('#postDelete').attr("disabled", false);
                         }
                         render_obj.push(cur_obj);
                     }
                     var itemTemplate = Hogan.compile($("#postsItem").html());
                     var postsItemHtml = itemTemplate.render({"items": render_obj});
                     $("#postItems").html(postsItemHtml);
+                    render_obj = [];
+                    for (var i = 0; i < arr_cfgfiles.length; ++i) {
+                        cur_obj = {"title": arr_cfgfiles[i], "num": -i - 1};
+                        if (num != null && -Math.floor(num) - 1 == i) {
+                            cur_obj.active = true;
+                            nowtpl = arr_cfgfiles[i];
+                            $("#postSave").attr("href", "#/posts/savepost");
+                            $('#posts .form-group input').attr("disabled", true).val("-");
+                            $("#postpath").val(nowtpl);
+                            $('#postDelete').attr("disabled", true);
+                        }
+                        render_obj.push(cur_obj);
+                    }
+                    var itemTemplate2 = Hogan.compile($("#postsItem").html());
+                    var templatesItemHtml = itemTemplate2.render({"items": render_obj});
+                    $("#templateItems").html(templatesItemHtml);
+                    
                     if (type != null && type.slice(0, 3) == "new") {
                         if (type.slice(3) == "post") {
                             $("#postSave").attr("href", "#/posts/savepost");
@@ -229,9 +252,19 @@ $(document).ready(function() {
                         $("#editmd").val();
                         $("#edithtml").html();
                         repo.read(site_branch, "articles/"+now.filename, function(err, data) {
+                            editing_template = false;
                             $("#loading").hide();
                             $("#editmd").val(extract_source(data));
                             mdupdate();
+                        });
+                    }
+                    if(nowtpl != null) {
+                        $("#loading").show();
+                        repo.read(site_branch, nowtpl, function(err, data) {
+                            editing_template = true;
+                            $("#loading").hide();
+                            $("#editmd").val(data);
+                            $("#edithtml").html("-");
                         });
                     }
                     
@@ -290,49 +323,60 @@ $(document).ready(function() {
                     var temp = this;
                     if (type.slice(0, 4) == "save") {
                         $("#loading").show();
-                        var posts = gconfig.articles;
-                        var md = $("#editmd").val();
-                        var now = {"filename": $("#postpath").val(),
-                                   "time": $("#postdate").val(),
-                                   "title": $("#posttitle").val(),
-                                   "tags": $("#posttags").val().split(/[,\s]+/),
-                                   "source": wrap_source(md),
-                                   "content": "",
-                                   "brief": ""};
-                        var idx_more = md.search(pattern_more);
-                        if(idx_more != -1) {
-                            now.brief = mdtohtml(md.slice(0, idx_more));
-                            md = md.replace(pattern_more, "\n\n");
+                        if(!editing_template) {
+                            var posts = gconfig.articles;
+                            var md = $("#editmd").val();
+                            var now = {"filename": $("#postpath").val(),
+                                    "time": $("#postdate").val(),
+                                    "title": $("#posttitle").val(),
+                                    "tags": $("#posttags").val().split(/[,\s]+/),
+                                    "source": wrap_source(md),
+                                    "content": "",
+                                    "brief": ""};
+                            var idx_more = md.search(pattern_more);
+                            if(idx_more != -1) {
+                                now.brief = mdtohtml(md.slice(0, idx_more));
+                                md = md.replace(pattern_more, "\n\n");
+                            }
+                            now.content = mdtohtml(md);
+                            repo.read(site_branch, "article.template", function(err, data) {
+                                if(!data) {
+                                    err(e);
+                                }
+                                else {
+                                    $("#saveerror").hide();
+                                    gconfig.current = now;
+                                    var html_final = Hogan.compile(data).render(gconfig);
+                                    repo.write(site_branch, "articles/"+now.filename, html_final, "save", function(err) {
+                                        now.content = now.source = undefined;
+                                        gconfig.current = undefined;
+                                        var mark = null;
+                                        for (var i = 0; i < posts.length; ++i)
+                                            if (posts[i].filename == now.filename)
+                                                mark = i;
+                                        if (mark != null)
+                                            posts[mark] = now;
+                                        else
+                                            posts.push(now);
+                                        repo.write(site_branch, "main.json", JSON.stringify(gconfig), "save", function(err) {
+                                            if (!errShow($("saveerror", err))) {
+                                                temp.posts.init(param);
+                                                temp.posts.active();
+                                            }
+                                        });    
+                                    });
+                                }
+                            });
                         }
-                        now.content = mdtohtml(md);
-                        repo.read(site_branch, "article.template", function(err, data) {
-                            if(!data) {
-                                err(e);
-                            }
-                            else {
-                                $("#saveerror").hide();
-                                gconfig.current = now;
-                                var html_final = Hogan.compile(data).render(gconfig);
-                                repo.write(site_branch, "articles/"+now.filename, html_final, "save", function(err) {
-                                    now.content = now.source = undefined;
-                                    gconfig.current = undefined;
-                                    var mark = null;
-                                    for (var i = 0; i < posts.length; ++i)
-                                        if (posts[i].filename == now.filename)
-                                            mark = i;
-                                    if (mark != null)
-                                        posts[mark] = now;
-                                    else
-                                        posts.push(now);
-                                    repo.write(site_branch, "main.json", JSON.stringify(gconfig), "save", function(err) {
-                                        if (!errShow($("saveerror", err))) {
-                                            temp.posts.init(param);
-                                            temp.posts.active();
-                                        }
-                                    });    
-                                });
-                            }
-                        });
+                        else {
+                            var newdata = $("#editmd").val();
+                            repo.write(site_branch, $("#postpath").val(), newdata, "save", function(err) {
+                                if (!errShow($("saveerror", err))) {
+                                    temp.posts.init(param);
+                                    temp.posts.active();
+                                }
+                            });
+                        }
                     }
                     else {
                         temp.posts.init(param);
