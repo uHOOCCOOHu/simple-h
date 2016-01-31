@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <title>{{current.title}} | {{title}}</title>
+  <link href="//cdn.bootcss.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet">
+  <link href="//cdn.bootcss.com/prism/0.0.1/prism.min.css" rel="stylesheet">
+  <link href="../main.css" rel="stylesheet">
+  <script src="//cdn.bootcss.com/jquery/1.11.3/jquery.min.js"></script>
+  <script src="//cdn.bootcss.com/prism/0.0.1/prism.min.js"></script>
+  <script src="//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async></script>
+</head>
+
+<body>
+  <header id="header">
+    <a href="../"><h1 id="header-title">{{title}}</h1></a>
+    <nav id="header-nav">
+      <a class="animation-bracket" href="../">Home</a>
+      <a class="animation-bracket" href="../archives.html">Archives</a>
+      <a class="animation-bracket" href="../articles/about.html">About</a>
+    </nav>
+  </header>
+  <main>
+    <div id="article-wrap">
+      <article class="article">
+        <header>
+          <time class="article-date" datetime="{{current.time}}" itemprop="datePublished">
+            <span class="fa fa-calendar-o"></span>
+          </time>
+          <h1 class="article-title">
+            {{current.title}}
+          </h1>
+        </header>
+        <div class="article-inner">
+          {{&current.content}}
+        </div>
+        <!--{{&current.source}}-->
+        <footer>
+          <ul class="tags">
+            {{#current.tags}}
+              <li><a href="../archives.html#{{.}}&" target="_blank">{{.}}</a></li>
+            {{/current.tags}}
+          </ul>
+          <div class="ds-thread" data-thread-key="{{current.filename}}" data-title="{{current.title}}"></div>
+        </footer>
+      </article>
+    </div>
+  </main>
+  <footer id="footer">
+    <p>{{&footer}}</p>
+  </footer>
+  <script>
+    var duoshuoQuery = {short_name: "{{ds_shortname}}"};
+    var arr_month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var to_simple_date = function(date) {
+      return arr_month[date.getMonth()] + ' ' + date.getDate();
+    };
+    
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    
+    $(function() {
+      Prism.highlightAll();
+      var t = new Date('{{current.time}}');
+      $('.article time').attr('title', t.toLocaleString() + '\n{{current.time}}');
+      $('.article time').append(to_simple_date(t));
+    });
+  </script>
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({ tex2jax: { inlineMath: [['$','$'], ["\\(", "\\)"]], processEscapes: true } });
+  </script>
+</body>
+
+</html>
