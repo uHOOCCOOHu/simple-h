@@ -10,6 +10,7 @@
   <link href="main.css" rel="stylesheet">
   <script src="//cdn.bootcss.com/hogan.js/3.0.2/hogan.min.js"></script>
   <script src="//cdn.bootcss.com/jquery/1.11.3/jquery.min.js"></script>
+  <script src="//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 </head>
 
 <body>
@@ -65,8 +66,10 @@
     var check_article_animation = function() {
       $('article.invisible').each(function() {
         var dt = $(this).offset().top - $(document).scrollTop();
-        if(dt > -$(this).height() && dt < $(window).height())
+        if(dt > -$(this).height() && dt < $(window).height()) {
           $(this).removeClass('invisible').addClass('animation-pop');
+          MathJax.Hub.Queue(["Typeset", MathJax.Hub, "article-wrap"]);
+        }
       });
     }
     var load_page = function() {
@@ -92,7 +95,7 @@
         $('#info-btn-load').show();
       check_article_animation();
     }
-    
+
     $(function() {
       $(window).scroll(check_article_animation);
       $(window).resize(check_article_animation);
