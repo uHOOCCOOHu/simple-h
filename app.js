@@ -89,7 +89,7 @@ function asyncWriteFile(source, target, err, finish) {
     if (!repo)
         Spine.Route.navigate("");
     $.ajax({
-        url: source, 
+        url: source,
         type: "GET",
         dataType: "text",
         success: function(data) {asyncWrite(data, target, err, finish)},
@@ -235,7 +235,7 @@ $(document).ready(function() {
                     var itemTemplate2 = Hogan.compile($("#postsItem").html());
                     var templatesItemHtml = itemTemplate2.render({"items": render_obj});
                     $("#templateItems").html(templatesItemHtml);
-                    
+
                     if (type != null && type.slice(0, 3) == "new") {
                         if (type.slice(3) == "post") {
                             $("#postSave").attr("href", "#/posts/savepost");
@@ -267,15 +267,22 @@ $(document).ready(function() {
                             $("#edithtml").html("-");
                         });
                     }
-                    
+
                     $("#btnGenIndex").on("click", function() {
-                        $("#loading").show();
-                        repo.read(site_branch, "index.template", function(err, data) {
-                            var html_final = Hogan.compile(data).render(gconfig);
-                            repo.write(site_branch, "index.html", html_final, "render", function(err) {
-                                $("#loading").hide();
+                        if(confirm("Generate index.html and archives.html?")) {
+                            $("#loading").show();
+                            repo.read(site_branch, "index.template", function(err, data) {
+                                var html_final = Hogan.compile(data).render(gconfig);
+                                repo.write(site_branch, "index.html", html_final, "render", function(err) {
+                                    repo.read(site_branch, "archives.template", function(err, data) {
+                                        var html_final2 = Hogan.compile(data).render(gconfig);
+                                        repo.write(site_branch, "archives.html", html_final2, "render", function(err) {
+                                            $("#loading").hide();
+                                        });
+                                    });
+                                });
                             });
-                        });
+                        }
                     });
                 });
             }
@@ -363,7 +370,7 @@ $(document).ready(function() {
                                                 temp.posts.init(param);
                                                 temp.posts.active();
                                             }
-                                        });    
+                                        });
                                     });
                                 }
                             });
